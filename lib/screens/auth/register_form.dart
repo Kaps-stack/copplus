@@ -1,14 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-
-// --- IMPORTS DES FICHIERS EXTERNES ---
-import '/providers/auth_provider.dart';
-import '/routes/app_routes.dart';
-import '/utils/location_data.dart';
-import '/utils/app_constants.dart'; // Assure-toi que le nom du fichier est correct
+import 'package:copplus/routes/app_routes.dart';
+import 'package:copplus/providers/auth_provider.dart';
+import '../../utils/app_constants.dart';
 
 class RegisterForm extends StatefulWidget {
   final String role;
@@ -19,322 +16,271 @@ class RegisterForm extends StatefulWidget {
 }
 
 class _RegisterFormState extends State<RegisterForm> {
+  int _currentStep = 0;
   final _formKey = GlobalKey<FormState>();
-  final Map<String, dynamic> _data = {};
-  int _pageIndex = 0;
-  late List<List<Map<String, dynamic>>> _steps;
+  
+  // Design System
+  final Color brandGold = const Color(0xFFBC7400);
+  final Color softGrey = const Color(0xFFF8F9FA);
 
-  final TextEditingController _birthdateController = TextEditingController();
+  // Contrôleurs
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _telController = TextEditingController();
+  final _passController = TextEditingController();
+  final _confirmPassController = TextEditingController();
+  final _serviceController = TextEditingController();
+  final _priceController = TextEditingController();
+  final _cityController = TextEditingController(text: "Kinshasa"); // Ville figée
+
+  File? _identityImage;
   final ImagePicker _picker = ImagePicker();
-  File? _identityCardFile;
+  final List<String> _quickPrices = ["5000", "15000", "25000", "50000"];
 
-  String? selectedCommune;
-  String? selectedQuartier;
-  bool isOtherQuartier = false;
-  bool isOtherService = false; // Pour gérer le service "Autre"
+  int get _totalSteps => widget.role == 'prestataire' ? 4 : 2;
 
-  @override
-  void initState() {
-    super.initState();
-    _data['role'] = widget.role;
-    _data['country'] = "RD Congo";
-    _data['province'] = "Kinshasa";
-    _data['city_residence'] = "Kinshasa";
-    _initializeSteps();
-  }
+  // --- ACTIONS ---
 
-  void _initializeSteps() {
-    List<Map<String, dynamic>> step1 = [
-      {'name': 'name', 'label': 'Nom complet', 'icon': Icons.person_outline, 'type': TextInputType.text},
-      {'name': 'email', 'label': 'Adresse Email', 'icon': Icons.alternate_email, 'type': TextInputType.emailAddress},
-      {'name': 'tel', 'label': 'Numéro de téléphone', 'icon': Icons.phone_android, 'type': TextInputType.phone},
-      {'name': 'sex', 'label': 'Sexe', 'icon': Icons.wc_outlined, 'type': 'dropdown'},
-      {'name': 'birthdate', 'label': 'Date de naissance', 'icon': Icons.calendar_today_outlined, 'type': 'date'},
-    ];
-
-    List<Map<String, dynamic>> step2 = [
-      {'name': 'country', 'label': 'Pays', 'icon': Icons.public},
-      {'name': 'city_residence', 'label': 'Ville', 'icon': Icons.location_city},
-      {'name': 'common', 'label': 'Commune', 'icon': Icons.map_outlined},
-      {'name': 'neighborhood', 'label': 'Quartier', 'icon': Icons.near_me_outlined},
-      {'name': 'street', 'label': 'Rue / Avenue', 'icon': Icons.streetview_outlined},
-      {'name': 'streetnumber', 'label': 'Numéro', 'icon': Icons.format_list_numbered_outlined},
-    ];
-
-    List<Map<String, dynamic>> step3 = widget.role == 'prestataire'
-        ? [
-            {'name': 'occupation', 'label': 'Occupation actuelle', 'icon': Icons.work_outline},
-            {'name': 'service_offered', 'label': 'Service proposé', 'icon': Icons.handyman_outlined, 'type': 'dropdown'},
-            {'name': 'education_level', 'label': 'Niveau d\'étude', 'icon': Icons.school_outlined, 'type': 'dropdown'},
-            {'name': 'study_domain', 'label': 'Domaine d\'étude', 'icon': Icons.history_edu_outlined},
-            {'name': 'languages', 'label': 'Langues (Français, Lingala...)', 'icon': Icons.translate},
-            {'name': 'province_origin', 'label': 'Province d\'origine', 'icon': Icons.explore_outlined, 'type': 'dropdown'},
-          ]
-        : [
-            {'name': 'occupation', 'label': 'Votre profession', 'icon': Icons.work_outline},
-          ];
-
-    List<Map<String, dynamic>> step4 = [
-      if (widget.role == 'prestataire') ...[
-        {'name': 'salary_min', 'label': 'Salaire Minimum (CDF)', 'icon': Icons.payments_outlined, 'type': TextInputType.number},
-        {'name': 'salary_max', 'label': 'Salaire Maximum (CDF)', 'icon': Icons.payments_outlined, 'type': TextInputType.number},
-        {'name': 'identity_card', 'label': 'Pièce d\'identité', 'icon': Icons.badge_outlined, 'type': 'file'},
-      ],
-      {'name': 'password', 'label': 'Mot de passe', 'icon': Icons.lock_outline, 'type': TextInputType.visiblePassword},
-      {'name': 'password_confirmation', 'label': 'Confirmer mot de passe', 'icon': Icons.lock_reset, 'type': TextInputType.visiblePassword},
-    ];
-
-    _steps = [step1, step2, step3, step4];
-  }
-
-  InputDecoration _buildInputDecoration(String label, IconData icon) {
-    return InputDecoration(
-      hintText: label,
-      hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
-      prefixIcon: Icon(icon, color: Colors.grey[400], size: 20),
-      filled: true,
-      fillColor: const Color(0xFFFAFAFA),
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 15),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey[300]!, width: 0.8),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFBC7400), width: 1.5),
-      ),
-    );
-  }
-
-  Widget _buildSmartField(Map<String, dynamic> field) {
-    final name = field['name'];
-
-    // Champs en lecture seule
-    if (['country', 'province', 'city_residence'].contains(name)) {
-      return TextFormField(
-        initialValue: _data[name],
-        readOnly: true,
-        decoration: _buildInputDecoration(field['label'], field['icon']),
-      );
+  Future<void> _nextStep() async {
+    if (_currentStep == 2 && widget.role == 'prestataire' && _identityImage == null) {
+      _showSnackBar("Veuillez charger votre pièce d'identité", Colors.orange);
+      return;
     }
 
-    // --- GESTION DES DROPDOWNS VIA APPCONSTANTS ---
-    if (name == 'sex' || name == 'education_level' || name == 'province_origin' || name == 'service_offered') {
-      
-      // Cas spécifique pour le service "Autre"
-      if (name == 'service_offered' && isOtherService) {
-        return TextFormField(
-          decoration: _buildInputDecoration("Précisez votre service", Icons.edit_note).copyWith(
-            suffixIcon: IconButton(icon: const Icon(Icons.cancel), onPressed: () => setState(() => isOtherService = false)),
-          ),
-          onChanged: (val) => _data[name] = val,
-          validator: (val) => (val == null || val.isEmpty) ? 'Requis' : null,
-        );
-      }
-
-      List<String> options;
-      if (name == 'sex') options = AppConstants.sexes;
-      else if (name == 'education_level') options = AppConstants.niveauxEtude;
-      else if (name == 'service_offered') options = AppConstants.servicesBase;
-      else options = ProvincesData.provinceList;
-      
-      return DropdownButtonFormField<String>(
-        key: ValueKey("dropdown_$name"),
-        value: options.contains(_data[name]) ? _data[name] : null,
-        decoration: _buildInputDecoration(field['label'], field['icon']),
-        items: options.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-        onChanged: (val) {
-          if (name == 'service_offered' && val == 'Autre') {
-            setState(() => isOtherService = true);
-          } else {
-            setState(() => _data[name] = val);
-          }
-        },
-        validator: (val) => val == null ? 'Obligatoire' : null,
-      );
-    }
-
-    // Commune
-    if (name == 'common') {
-      List<String> options = (LocationData.data['RD Congo']['Kinshasa'] as Map<String, dynamic>).keys.toList();
-      return DropdownButtonFormField<String>(
-        value: options.contains(selectedCommune) ? selectedCommune : null,
-        decoration: _buildInputDecoration(field['label'], field['icon']),
-        items: options.map<DropdownMenuItem<String>>((String c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList(),
-        onChanged: (val) => setState(() {
-          selectedCommune = val;
-          selectedQuartier = null;
-          isOtherQuartier = false;
-          _data[name] = val;
-        }),
-      );
-    }
-
-    // Quartier
-    if (name == 'neighborhood') {
-      if (isOtherQuartier) {
-        return TextFormField(
-          decoration: _buildInputDecoration("Précisez le quartier", Icons.edit_location).copyWith(
-            suffixIcon: IconButton(icon: const Icon(Icons.cancel), onPressed: () => setState(() => isOtherQuartier = false)),
-          ),
-          onChanged: (val) => _data[name] = val,
-        );
-      }
-      List<String> qOptions = selectedCommune != null 
-          ? (LocationData.data['RD Congo']['Kinshasa'][selectedCommune] as List).cast<String>().toList() 
-          : [];
-      return DropdownButtonFormField<String>(
-        value: qOptions.contains(selectedQuartier) ? selectedQuartier : null,
-        decoration: _buildInputDecoration(field['label'], field['icon']),
-        items: [
-          ...qOptions.map<DropdownMenuItem<String>>((q) => DropdownMenuItem<String>(value: q, child: Text(q))),
-          const DropdownMenuItem<String>(value: "AUTRE", child: Text("➕ Autre...", style: TextStyle(color: Colors.blue))),
-        ],
-        onChanged: (val) {
-          if (val == "AUTRE") setState(() => isOtherQuartier = true);
-          else setState(() { selectedQuartier = val; _data[name] = val; });
-        },
-      );
-    }
-
-    // Pièce d'identité
-    if (name == 'identity_card') {
-      return InkWell(
-        onTap: () async {
-          final XFile? file = await _picker.pickImage(source: ImageSource.gallery);
-          if (file != null) setState(() { _identityCardFile = File(file.path); _data['identity_card'] = file.path; });
-        },
-        child: Container(
-          height: 100,
-          decoration: BoxDecoration(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey[300]!)),
-          child: _identityCardFile == null 
-            ? const Center(child: Icon(Icons.add_a_photo_outlined, color: Colors.grey)) 
-            : ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(_identityCardFile!, fit: BoxFit.cover, width: double.infinity)),
-        ),
-      );
-    }
-
-    // Champs texte classiques
-    return TextFormField(
-      key: ValueKey("field_$name"),
-      controller: name == 'birthdate' ? _birthdateController : null,
-      readOnly: name == 'birthdate',
-      onTap: name == 'birthdate' ? () => _selectDate(context) : null,
-      obscureText: name.toString().contains('password'),
-      keyboardType: field['type'] is TextInputType ? field['type'] : TextInputType.text,
-      decoration: _buildInputDecoration(field['label'], field['icon']),
-      onChanged: (val) => _data[name] = val,
-      validator: (val) => (val == null || val.isEmpty) ? 'Requis' : null,
-    );
-  }
-
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context, 
-      initialDate: DateTime(2000), 
-      firstDate: DateTime(1950), 
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: Color(0xFFBC7400)),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) setState(() {
-      _birthdateController.text = DateFormat('dd/MM/yyyy').format(picked);
-      _data['birthdate'] = DateFormat('yyyy-MM-dd').format(picked);
-    });
-  }
-
-  void _submit() async {
     if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
-      try {
-        await context.read<AuthProvider>().register(_data);
-        if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.home);
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+      if (_currentStep < _totalSteps - 1) {
+        setState(() => _currentStep++);
+      } else {
+        _submitForm();
       }
     }
   }
+
+  Future<void> _submitForm() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    Map<String, dynamic> data = {
+      'name': _nameController.text.trim(),
+      'email': _emailController.text.trim(),
+      'tel': _telController.text.trim(),
+      'password': _passController.text,
+      'password_confirmation': _confirmPassController.text,
+      'role': widget.role,
+    };
+
+    if (widget.role == 'prestataire') {
+      data.addAll({
+        'service_offered': _serviceController.text,
+        'monthly_price': _priceController.text,
+        'city_residence': _cityController.text, // Kinshasa par défaut
+        'identity_card': _identityImage,
+      });
+    }
+
+    try {
+      await authProvider.register(data);
+      if (mounted) _showSuccessDialog();
+    } catch (e) {
+      if (mounted) _showSnackBar(e.toString().replaceAll('Exception:', ''), Colors.redAccent);
+    }
+  }
+
+  // --- UI BUILDING ---
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        elevation: 0, backgroundColor: Colors.white, centerTitle: true,
-        leading: IconButton(
-          icon: Icon(_pageIndex > 0 ? Icons.arrow_back_ios : Icons.close, color: Colors.black, size: 20),
-          onPressed: () => _pageIndex > 0 ? setState(() => _pageIndex--) : Navigator.pop(context),
-        ),
-        title: Text(widget.role == 'prestataire' ? "Inscription Prestataire" : "Inscription Client",
-            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-      ),
-      body: Column(
-        children: [
-          LinearProgressIndicator(value: (_pageIndex + 1) / _steps.length, backgroundColor: Colors.grey[100], color: const Color(0xFFBC7400)),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    // LOGO SECTION
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
-                      decoration: BoxDecoration(color: const Color(0xFFBC7400), borderRadius: BorderRadius.circular(50)),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.handshake, color: Colors.black, size: 25),
-                          const SizedBox(width: 10),
-                          RichText(text: const TextSpan(style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900), children: [
-                            TextSpan(text: "COP", style: TextStyle(color: Colors.red)),
-                            TextSpan(text: "PLUS", style: TextStyle(color: Colors.yellow)),
-                          ])),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text('Inscription', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    Text("Étape ${_pageIndex + 1} sur ${_steps.length}", style: TextStyle(color: Colors.grey[400])),
-                    const SizedBox(height: 30),
-                    
-                    // CHAMPS DYNAMIQUES
-                    ...(_steps[_pageIndex].map((field) => Padding(
-                      padding: const EdgeInsets.only(bottom: 15),
-                      child: _buildSmartField(field),
-                    )).toList()),
-
-                    const SizedBox(height: 20),
-                    // BOUTON DE NAVIGATION
-                    SizedBox(width: double.infinity, height: 52, child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFBC7400), 
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          if (_pageIndex < _steps.length - 1) setState(() => _pageIndex++);
-                          else _submit();
-                        }
-                      },
-                      child: Text(_pageIndex == _steps.length - 1 ? "TERMINER" : "CONTINUER", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    )),
-                  ],
+    return Consumer<AuthProvider>(builder: (context, auth, child) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: CustomScrollView(
+          slivers: [
+            _buildAppBar(),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 30),
+                      _buildStepContent(),
+                      const SizedBox(height: 40),
+                      auth.isLoading 
+                        ? const Center(child: CircularProgressIndicator()) 
+                        : _buildActionButton(),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            )
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildAppBar() => SliverAppBar(
+    expandedHeight: 100, backgroundColor: Colors.white, elevation: 0, pinned: true,
+    leading: IconButton(
+      icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 20),
+      onPressed: () => _currentStep > 0 ? setState(() => _currentStep--) : Navigator.pop(context),
+    ),
+    flexibleSpace: FlexibleSpaceBar(centerTitle: true, title: _badgeMini()),
+  );
+
+  Widget _buildHeader() {
+    List<String> titles = widget.role == 'prestataire' 
+        ? ["Infos personnelles", "Votre Expertise", "Vérification ID", "Sécurité"]
+        : ["Créer un compte", "Sécurité"];
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _buildStepIndicator(),
+      const SizedBox(height: 20),
+      Text(titles[_currentStep], style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+    ]);
+  }
+
+  Widget _buildStepContent() {
+    if (widget.role == 'prestataire') {
+      if (_currentStep == 0) return _buildPersoFields();
+      if (_currentStep == 1) return _buildServiceFields();
+      if (_currentStep == 2) return _buildIdentityFields();
+      return _buildSecurityFields();
+    } else {
+      return _currentStep == 0 ? _buildPersoFields() : _buildSecurityFields();
+    }
+  }
+
+  Widget _buildPersoFields() => Column(children: [
+    _input(_nameController, "Nom Complet", Icons.person_outline),
+    _input(_emailController, "Email", Icons.alternate_email, type: TextInputType.emailAddress),
+    _input(_telController, "Téléphone", Icons.phone_android, type: TextInputType.phone),
+  ]);
+
+  Widget _buildServiceFields() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const Text("Quel service proposez-vous ?", style: TextStyle(fontWeight: FontWeight.bold)),
+    const SizedBox(height: 12),
+    Wrap(spacing: 8, runSpacing: 8, children: AppConstants.servicesBase.map((s) {
+      bool isSel = _serviceController.text == s;
+      return ChoiceChip(
+        label: Text(s), selected: isSel,
+        onSelected: (v) => setState(() => _serviceController.text = v ? s : ""),
+        selectedColor: brandGold.withOpacity(0.2), backgroundColor: softGrey,
+        labelStyle: TextStyle(color: isSel ? brandGold : Colors.black, fontWeight: isSel ? FontWeight.bold : FontWeight.normal),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      );
+    }).toList()),
+    const SizedBox(height: 25),
+    const Text("Votre tarif (FC)", style: TextStyle(fontWeight: FontWeight.bold)),
+    const SizedBox(height: 12),
+    Row(children: _quickPrices.map((p) => Expanded(child: GestureDetector(
+      onTap: () => setState(() => _priceController.text = p),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(color: _priceController.text == p ? brandGold : softGrey, borderRadius: BorderRadius.circular(10)),
+        child: Center(child: Text(p, style: TextStyle(color: _priceController.text == p ? Colors.white : Colors.black, fontWeight: FontWeight.bold))),
+      ),
+    ))).toList()),
+    _input(_priceController, "Prix personnalisé", Icons.payments_outlined, type: TextInputType.number),
+    const SizedBox(height: 15),
+    // VILLE FIGÉE ICI
+    _input(_cityController, "Ville", Icons.location_city, readOnly: true, suffix: const Icon(Icons.lock_outline, size: 16, color: Colors.orange)),
+  ]);
+
+  Widget _buildIdentityFields() => Column(children: [
+    const Text("Preuve d'identité (Carte d'électeur / Passeport)", textAlign: TextAlign.center),
+    const SizedBox(height: 20),
+    GestureDetector(
+      onTap: () => _pickImage(ImageSource.gallery),
+      child: Container(
+        height: 200, width: double.infinity,
+        decoration: BoxDecoration(color: softGrey, borderRadius: BorderRadius.circular(20), border: Border.all(color: brandGold.withOpacity(0.1))),
+        child: _identityImage == null 
+          ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_a_photo_outlined, color: brandGold, size: 40), const Text("Ajouter la photo")])
+          : ClipRRect(borderRadius: BorderRadius.circular(18), child: Image.file(_identityImage!, fit: BoxFit.cover)),
+      ),
+    ),
+  ]);
+
+  Widget _buildSecurityFields() => Column(children: [
+    _input(_passController, "Mot de passe", Icons.lock_outline, obscure: true),
+    _input(_confirmPassController, "Confirmation", Icons.lock_reset, obscure: true),
+  ]);
+
+  // --- ATOMES UI ---
+
+  Widget _input(TextEditingController c, String h, IconData i, {bool obscure = false, TextInputType type = TextInputType.text, bool readOnly = false, Widget? suffix}) => Padding(
+    padding: const EdgeInsets.only(top: 15),
+    child: TextFormField(
+      controller: c, obscureText: obscure, keyboardType: type, readOnly: readOnly,
+      validator: (v) => v!.isEmpty ? "Requis" : null,
+      decoration: InputDecoration(
+        filled: true, fillColor: softGrey, prefixIcon: Icon(i, color: brandGold, size: 20),
+        suffixIcon: suffix, hintText: h,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+      ),
+    ),
+  );
+
+  Widget _buildActionButton() => SizedBox(
+    width: double.infinity, height: 58,
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(backgroundColor: brandGold, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+      onPressed: _nextStep,
+      child: Text(_currentStep == _totalSteps - 1 ? "VALIDER" : "SUIVANT", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+    ),
+  );
+
+  Widget _buildStepIndicator() => Row(children: List.generate(_totalSteps, (i) => Expanded(child: Container(
+    height: 4, margin: const EdgeInsets.symmetric(horizontal: 2),
+    decoration: BoxDecoration(color: i <= _currentStep ? brandGold : softGrey, borderRadius: BorderRadius.circular(10)),
+  ))));
+
+  Widget _badgeMini() => Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), decoration: BoxDecoration(color: brandGold, borderRadius: BorderRadius.circular(20)), child: const Text("COPPLUS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)));
+
+  void _showSnackBar(String m, Color c) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: c, behavior: SnackBarBehavior.floating));
+
+  Future<void> _pickImage(ImageSource s) async {
+    final p = await _picker.pickImage(source: s, imageQuality: 40);
+    if (p != null) setState(() => _identityImage = File(p.path));
+  }
+
+ void _showSuccessDialog() {
+  final bool isPrestataire = widget.role == 'prestataire';
+  
+  showDialog(
+    context: context, 
+    barrierDismissible: false, 
+    builder: (c) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min, 
+        children: [
+          Icon(isPrestataire ? Icons.access_time : Icons.check_circle_outline, 
+               color: isPrestataire ? Colors.orange : Colors.green, size: 70),
+          const SizedBox(height: 20),
+          Text(isPrestataire ? "Demande en attente" : "Compte créé !", 
+               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 10),
+          Text(
+            isPrestataire 
+              ? "Votre profil de prestataire est en cours de vérification. Nous reviendrons vers vous par email." 
+              : "Bienvenue chez COPPLUS ! Vous pouvez maintenant vous connecter.", 
+            textAlign: TextAlign.center
           ),
+          const SizedBox(height: 30),
+          SizedBox(
+            width: double.infinity, 
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: brandGold),
+              onPressed: () => Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (r) => false),
+              child: const Text("RETOUR À LA CONNEXION", style: TextStyle(color: Colors.white)),
+            ),
+          )
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

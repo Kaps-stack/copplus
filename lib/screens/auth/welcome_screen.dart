@@ -5,6 +5,7 @@ import 'package:video_player/video_player.dart';
 
 import 'login_view.dart';
 
+
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
 
@@ -150,15 +151,13 @@ class _WelcomePageState extends State<WelcomePage> {
                   alignment: PlaceholderAlignment.baseline,
                   baseline: TextBaseline.alphabetic,
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(
-                      4,
-                    ), // Pour que l'effet de clic ne déborde pas
+                    borderRadius: BorderRadius.circular(4),
                     onTap: () => Navigator.pushNamed(context, AppRoutes.about),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 4,
                         vertical: 2,
-                      ), // Zone de clic plus large
+                      ),
                       child: const Text(
                         "Voir plus",
                         style: TextStyle(
@@ -185,7 +184,7 @@ class _WelcomePageState extends State<WelcomePage> {
           width: double.infinity,
           height: 55,
           child: ElevatedButton(
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
+            onPressed: () => _showRoleSelector(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: brandGold,
               shape: RoundedRectangleBorder(
@@ -204,38 +203,95 @@ class _WelcomePageState extends State<WelcomePage> {
           ),
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          height: 55,
-          child: OutlinedButton(
-            onPressed: () => _showRoleSelectionDialog(),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: Colors.grey[200]!),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  'assets/images/google.png',
-                  height: 22,
-                  errorBuilder: (c, e, s) => const Icon(Icons.g_mobiledata),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  "Continuer avec Google",
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+        _googleButton(),
+      ],
+    );
+  }
+
+  Widget _googleButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: OutlinedButton.icon(
+        onPressed: () {},
+        icon: Image(image:  const AssetImage('assets/images/google.png'),
+          height: 22,
+          errorBuilder: (c, e, s) => const Icon(Icons.g_mobiledata, size: 30),
+        ),
+        label: const Text(
+          "Continuer avec Google",
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
           ),
         ),
-      ],
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: Colors.grey[200]!),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRoleSelector(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "Choisissez votre profil",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            _roleTile(context, "Client", "Je cherche un service",
+                Icons.person_outline, "client"),
+            const SizedBox(height: 12),
+            _roleTile(context, "Prestataire", "Je propose mes services",
+                Icons.handyman_outlined, "prestataire"),
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _roleTile(BuildContext context, String title, String sub,
+      IconData icon, String role) {
+    return ListTile(
+      onTap: () {
+        Navigator.pop(context); // Ferme le modal
+        Navigator.pushNamed(context, AppRoutes.register, arguments: role);
+      },
+      leading: CircleAvatar(
+        backgroundColor: brandGold.withOpacity(0.1),
+        child: Icon(icon, color: brandGold),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text(sub),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(15),
+      ),
     );
   }
 
@@ -247,7 +303,7 @@ class _WelcomePageState extends State<WelcomePage> {
         GestureDetector(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const LoginPage()),
+            MaterialPageRoute(builder: (_) => const LoginView()),
           ),
           child: const Text(
             "Se connecter",
@@ -259,10 +315,6 @@ class _WelcomePageState extends State<WelcomePage> {
         ),
       ],
     );
-  }
-
-  void _showRoleSelectionDialog() {
-    // Ton code existant pour le dialogue
   }
 }
 
@@ -321,8 +373,7 @@ class _VideoPlayerWidgetState extends State<_VideoPlayerWidget> {
       borderRadius: BorderRadius.circular(20),
       child: AspectRatio(
         aspectRatio: 16 / 9,
-        child:
-            _chewieController != null &&
+        child: _chewieController != null &&
                 _chewieController!.videoPlayerController.value.isInitialized
             ? Chewie(controller: _chewieController!)
             : const Center(child: CircularProgressIndicator()),

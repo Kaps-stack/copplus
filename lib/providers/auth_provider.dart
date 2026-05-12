@@ -1,10 +1,9 @@
 import 'dart:convert';
-
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-import '../Model/User.dart';
-import '../services/AuthService.dart';
+import '../Model/user.dart';
+import '../services/auth_service.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -22,53 +21,47 @@ class AuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isAuthenticated => _token != null && _user != null;
-
-  // Utilitaire pour la redirection
-  bool get isProfileIncomplete {
-    if (_user == null) return false;
-    return (_user!.tel.isEmpty) || (_user!.common.isEmpty);
-  }
+  bool get isProfileIncomplete => _user == null ? false : !_user!.isProfileComplete;
+  bool get shouldShowCompleteProfileFlag => isAuthenticated && isProfileIncomplete;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
-    final savedToken = await _storage.read(key: 'auth_token');
-    final savedUserJson = await _storage.read(key: 'user_data');
-    if (savedToken != null && savedUserJson != null) {
-      _token = savedToken;
-      _user = User.fromJson(jsonDecode(savedUserJson));
+    try {
+      final savedToken = await _storage.read(key: 'auth_token');
+      final savedUserJson = await _storage.read(key: 'user_data');
+      if (savedToken != null && savedUserJson != null) {
+        _token = savedToken;
+        _user = User.fromJson(jsonDecode(savedUserJson));
+        debugPrint("🔐 [AUTH] Initialisé : ${_user?.name} (Complet: ${!isProfileIncomplete})");
+      }
+    } catch (e) {
+      debugPrint("❌ [AUTH] Erreur Initialisation: $e");
+      await logout();
+    } finally {
+      _isInitialized = true;
+      notifyListeners();
     }
-    _isInitialized = true;
-    notifyListeners();
   }
 
   Future<void> login(String login, String password) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
-
     try {
       final result = await _authService.login(login, password);
-
-      // 1. Mise à jour des données
-      _token = result['token'];
       _user = result['user'];
+      _token = result['token'];
 
-      // 2. Sauvegarde locale
       await _storage.write(key: 'auth_token', value: _token);
-      await _storage.write(
-        key: 'user_data',
-        value: jsonEncode(_user!.toJson()),
-      );
-
-      // --- FORCE LA NOTIFICATION ICI ---
-      _isLoading = false;
-      notifyListeners();
-      print("✅ Login réussi, notifyListeners appelé");
+      await _storage.write(key: 'user_data', value: jsonEncode(_user!.toJson()));
+      debugPrint("✅ [AUTH] Login réussi");
     } catch (e) {
-      _isLoading = false;
       _error = e.toString();
-      notifyListeners();
+      debugPrint("❌ [AUTH] Erreur Login: $e");
       rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -80,13 +73,19 @@ class AuthProvider with ChangeNotifier {
       final result = await _authService.register(data);
       _user = result['user'];
       _token = result['token'];
-      await _storage.write(key: 'auth_token', value: _token);
-      await _storage.write(
-        key: 'user_data',
-        value: jsonEncode(_user!.toJson()),
-      );
+
+      if (_token != null) {
+        await _storage.write(key: 'auth_token', value: _token);
+        await _storage.write(key: 'user_data', value: jsonEncode(_user!.toJson()));
+      } else {
+        await _storage.delete(key: 'auth_token');
+        await _storage.delete(key: 'user_data');
+      }
+      debugPrint("✅ [AUTH] Inscription réussie");
+      notifyListeners();
     } catch (e) {
       _error = e.toString();
+      debugPrint("❌ [AUTH] Register Error: $e");
       rethrow;
     } finally {
       _isLoading = false;
@@ -94,78 +93,65 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // --- RESTAURATION : TES MÉTHODES D'ORIGINE ---
-  Future<void> forgotPassword(String email) async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      await _authService.forgotPassword(email);
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> resetPassword(
-    String email,
-    String token,
-    String pass,
-    String passConf,
-  ) async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      await _authService.resetPassword(email, token, pass, passConf);
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  /// MISE À JOUR DU PROFIL
-  /// Envoie les données au AuthService, met à jour l'utilisateur local
-  /// et rafraîchit l'interface utilisateur.
   Future<bool> updateProfile(Map<String, dynamic> data) async {
-    if (_token == null) return false;
-
+    if (_token == null) {
+      debugPrint("❌ [AUTH] UpdateProfile impossible: Token nul");
+      return false;
+    }
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    try {
-      // 1. Appel au service (Laravel)
-      final updatedUser = await _authService.updateProfile(data, _token!);
+    debugPrint("📡 [API] Envoi des données de mise à jour...");
 
-      // 2. Mise à jour de l'état local
+    try {
+      final updatedUser = await _authService.updateProfile(data, _token!);
+      
+      // Mise à jour de l'objet local avec les données fraîches du serveur
       _user = updatedUser;
 
-      // 3. Persistance dans le stockage sécurisé
-      await _storage.write(
-        key: 'user_data',
-        value: jsonEncode(_user!.toJson()),
-      );
-
-      print("✅ Profil mis à jour et synchronisé");
+      // Sauvegarde persistante
+      await _storage.write(key: 'user_data', value: jsonEncode(_user!.toJson()));
+      
+      debugPrint("✅ [API] Profil mis à jour. Nouveau statut complet: ${!isProfileIncomplete}");
       return true;
     } catch (e) {
       _error = e.toString();
-      print("❌ Erreur lors de l'update : $_error");
+      debugPrint("❌ [API] Update Profile Error: $e");
       return false;
     } finally {
       _isLoading = false;
-      notifyListeners();
+      notifyListeners(); // Déclenche la reconstruction de HomeView
     }
   }
+
+  Future<void> updateLocation(double lat, double long) async {
+    if (_token == null) return;
+    try {
+      debugPrint("📡 [API] Envoi GPS : $lat, $long");
+      _user = await _authService.updateProfile({'latitude': lat, 'longitude': long}, _token!);
+      await _storage.write(key: 'user_data', value: jsonEncode(_user!.toJson()));
+      notifyListeners();
+    } catch (e) {
+      debugPrint("❌ [API] GPS Update Error: $e");
+    }
+  }
+
+  Future<void> forgotPassword(String email) async => await _authService.forgotPassword(email);
+
+  Future<void> resetPassword(String e, String t, String p, String pc) async =>
+      await _authService.resetPassword(e, t, p, pc);
 
   Future<void> logout() async {
     try {
       if (_token != null) await _authService.logout(_token!);
-    } finally {
-      await _storage.deleteAll();
-      _user = null;
-      _token = null;
-      notifyListeners();
-    }
+    } catch (_) {}
+    await _storage.deleteAll();
+    _user = null;
+    _token = null;
+    _isInitialized = true;
+    debugPrint("🚪 [AUTH] Déconnexion");
+    notifyListeners();
   }
 
   String getGoogleUrl(String role) => _authService.getGoogleLoginUrl(role);

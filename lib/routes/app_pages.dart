@@ -1,80 +1,132 @@
 import 'package:flutter/material.dart';
 
-import '../Model/service_request_model.dart'; // Import crucial pour ServiceRequest
+// Modèles
+import '../Model/service_request_model.dart'; 
+import '../Model/contract.dart'; // Ajout du modèle Contract
+
+// Écrans Auth
 import '../screens/auth/forgot_password_screen.dart';
 import '../screens/auth/login_view.dart';
-import '../screens/auth/register_view.dart';
+import '../screens/auth/complete_profile_page.dart';
+import '../screens/auth/register_form.dart';
 import '../screens/auth/reset_password_screen.dart';
-import '../screens/client/find_service_screen.dart';
-import '../screens/client/my_requests_page.dart';
+
+// Écrans Client / Missions
 import '../screens/client/notifications_page.dart';
-import '../screens/client/request_details_page.dart';
+import '../screens/client/request_details_page.dart'; 
+import '../screens/missions_view.dart';
+import '../screens/appointements_view.dart';
+
+// Écrans Contrats (Nouveaux)
+import '../screens/contract_list_screen.dart';
+import '../screens/contract_detail_screen.dart';
+
+// Écrans Home & Profil
 import '../screens/home/home_screen.dart';
 import '../screens/profile/edit_profile_screen.dart';
 import '../screens/profile/profile_screen.dart';
+
+// Écrans Statiques
 import '../screens/static/about_page.dart';
 import '../screens/static/menu_screen.dart';
+
+// Configuration
 import 'app_routes.dart';
 
 class AppPages {
-  // 1. On garde les routes simples ici
+  /// 1. Définition des routes statiques (sans arguments complexes)
   static Map<String, WidgetBuilder> getRoutes() {
     return {
-      AppRoutes.login: (context) => const LoginPage(),
-      AppRoutes.register: (context) => const RegisterPage(),
+      AppRoutes.login: (context) => const LoginView(),
       AppRoutes.home: (context) => const HomeView(),
       AppRoutes.forgotPassword: (context) => const ForgotPasswordPage(),
       AppRoutes.resetPassword: (context) => const ResetPasswordPage(),
       AppRoutes.about: (context) => const AboutUsPage(),
       AppRoutes.editProfile: (context) => const EditProfileView(),
-      AppRoutes.profile: (context) => const ProfileView(),
+      AppRoutes.profile: (context) => const ProfileScreen(),
       AppRoutes.menu: (context) => const MenuView(),
-      AppRoutes.findService: (context) => const FindServicePage(),
-      AppRoutes.myRequests: (context) => const MyRequestsPage(),
       AppRoutes.notifications: (context) => const NotificationsPage(),
+      AppRoutes.completeProfile: (context) => const CompleteProfilePage(),
+      AppRoutes.missions: (context) => const MissionsView(),
+      AppRoutes.myAppointments: (context) => const ClientAppointmentsView(),
     };
   }
 
-  // 2. On crée une fonction spéciale pour les routes avec ARGUMENTS (Détails)
+  /// 2. Gestion des routes dynamiques (avec passage d'arguments)
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
-    if (settings.name == AppRoutes.myRequestDetails) {
-      // On récupère l'objet ServiceRequest passé lors du Navigator.push
-      final args = settings.arguments as ServiceRequest;
+    
+    // --- CAS : REGISTER (Rôle) ---
+    if (settings.name == AppRoutes.register) {
+      final role = settings.arguments as String? ?? 'client';
       return MaterialPageRoute(
-        builder: (context) => RequestDetailsPage(r: args),
+        builder: (context) => RegisterForm(role: role),
       );
     }
 
-    if (settings.name == AppRoutes.requestDetails) {
-      // Route pour les détails de demande depuis les notifications
-      final requestId = settings.arguments as int?;
+    // --- CAS : LISTE DES CONTRATS (Argument: bool isClient) ---
+    if (settings.name == '/contracts') { // Utilise AppRoutes.contracts si défini
+      final bool isClient = settings.arguments as bool? ?? true;
       return MaterialPageRoute(
-        builder: (context) => RequestDetailsPage(
-          r: ServiceRequest(
-            id: requestId ?? 0,
-            reference: '#$requestId',
-            serviceName: 'Service',
-            commune: 'Kinshasa',
-            status: 'pending',
-            salary: '0',
-            days: [],
-          ),
+        builder: (context) => ContractListScreen(isClient: isClient),
+      );
+    }
+
+    // --- CAS : DÉTAILS CONTRAT (Arguments: Map avec 'contract' et 'isClient') ---
+    if (settings.name == '/contract-details') { // Utilise AppRoutes.contractDetails
+      final args = settings.arguments as Map<String, dynamic>;
+      return MaterialPageRoute(
+        builder: (context) => ContractDetailScreen(
+          contract: args['contract'] as Contract,
+          isClient: args['isClient'] as bool? ?? true,
         ),
       );
     }
 
-    // Si la route est dans la Map simple, on la retourne
-    final routes = getRoutes();
-    if (routes.containsKey(settings.name)) {
+    // --- CAS : DÉTAILS DEMANDE (ServiceRequest) ---
+    if (settings.name == AppRoutes.myRequestDetails || settings.name == AppRoutes.requestDetails) {
+      ServiceRequest request;
+
+      if (settings.arguments is ServiceRequest) {
+        request = settings.arguments as ServiceRequest;
+      } else {
+        final int requestId = settings.arguments as int? ?? 0;
+        request = ServiceRequest(
+          id: requestId,
+          reference: '#$requestId',
+          serviceName: 'Chargement...',
+          commune: 'Non spécifiée',
+          status: 'pending',
+          salaryAmount: '0',
+          days: [],
+        );
+      }
+
       return MaterialPageRoute(
-        builder: (context) => routes[settings.name]!(context),
+        builder: (context) => RequestDetailsPage(r: request),
       );
     }
 
-    // Route par défaut (erreur)
+    // --- VÉRIFICATION DES ROUTES STATIQUES ---
+    final Map<String, WidgetBuilder> routes = getRoutes();
+    final WidgetBuilder? builder = routes[settings.name];
+
+    if (builder != null) {
+      return MaterialPageRoute(
+        settings: settings,
+        builder: (context) => builder(context),
+      );
+    }
+
+    // --- ROUTE PAR DÉFAUT (404) ---
     return MaterialPageRoute(
-      builder: (context) =>
-          const Scaffold(body: Center(child: Text("Route inconnue"))),
+      builder: (context) => const Scaffold(
+        body: Center(
+          child: Text(
+            "Oups ! Cette page n'existe pas.",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
     );
   }
 }

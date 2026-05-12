@@ -1,14 +1,9 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
-
-import '/providers/auth_provider.dart';
-import '/routes/app_routes.dart';
-import '/utils/location_data.dart';
-import '/widgets/custom_bottom_nav.dart';
+import '../../providers/auth_provider.dart';
 
 class EditProfileView extends StatefulWidget {
   const EditProfileView({super.key});
@@ -19,537 +14,229 @@ class EditProfileView extends StatefulWidget {
 
 class _EditProfileViewState extends State<EditProfileView> {
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
-  bool _obscureOldPassword = true;
-  bool _obscureNewPassword = true;
-
   late TextEditingController _nameController;
-  late TextEditingController _emailController;
   late TextEditingController _telController;
-  late TextEditingController _birthdateController;
-  late TextEditingController _oldPasswordController;
-  late TextEditingController _newPasswordController;
-  late TextEditingController _streetController;
-  late TextEditingController _streetNumberController;
-  late TextEditingController _occupationController;
-  late TextEditingController _serviceOfferedController;
-  late TextEditingController _salaryMinController;
-  late TextEditingController _salaryMaxController;
-  late TextEditingController _studyDomainController;
-  late TextEditingController _languagesController;
-
+  late TextEditingController _cityController;
   String? _selectedSex;
-  String? _selectedCommune;
-  String? _selectedQuartier;
-  String? _selectedEducation;
-
-  String? _newIdentityCardPath;
+  DateTime? _selectedBirthDate;
+  File? _newImage;
 
   @override
   void initState() {
     super.initState();
     final user = context.read<AuthProvider>().user;
-
-    _nameController = TextEditingController(text: user?.name ?? "");
-    _emailController = TextEditingController(text: user?.email ?? "");
-    _telController = TextEditingController(text: user?.tel ?? "");
-    _birthdateController = TextEditingController(text: user?.birthdate ?? "");
-    _oldPasswordController = TextEditingController();
-    _newPasswordController = TextEditingController();
-    _streetController = TextEditingController(text: user?.street ?? "");
-    _streetNumberController = TextEditingController(
-      text: user?.streetNumber ?? "",
-    );
-    _occupationController = TextEditingController(text: user?.occupation ?? "");
-    _serviceOfferedController = TextEditingController(
-      text: user?.serviceOffered ?? "",
-    );
-    _salaryMinController = TextEditingController(
-      text: user?.salaryMin?.toString() ?? "",
-    );
-    _salaryMaxController = TextEditingController(
-      text: user?.salaryMax?.toString() ?? "",
-    );
-    _studyDomainController = TextEditingController(
-      text: user?.studyDomain ?? "",
-    );
-    _languagesController = TextEditingController(text: user?.languages ?? "");
-
+    _nameController = TextEditingController(text: user?.name);
+    _telController = TextEditingController(text: user?.tel);
+    _cityController = TextEditingController(text: user?.cityResidence);
     _selectedSex = user?.sex;
-    _selectedCommune = user?.common;
-    _selectedQuartier = user?.neighborhood;
-    _selectedEducation = user?.educationLevel;
-  }
-
-  Future<void> _pickIdCard() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() => _newIdentityCardPath = image.path);
+    if (user?.birthdate != null) {
+      _selectedBirthDate = DateTime.tryParse(user!.birthdate!);
     }
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _telController.dispose();
-    _birthdateController.dispose();
-    _oldPasswordController.dispose();
-    _newPasswordController.dispose();
-    _streetController.dispose();
-    _streetNumberController.dispose();
-    _occupationController.dispose();
-    _serviceOfferedController.dispose();
-    _salaryMinController.dispose();
-    _salaryMaxController.dispose();
-    _studyDomainController.dispose();
-    _languagesController.dispose();
-    super.dispose();
-  }
-
-  void _submitUpdate() async {
+  void _update() async {
     if (_formKey.currentState!.validate()) {
-      final user = context.read<AuthProvider>().user;
-      final bool isPrestataire = user?.role.toLowerCase() == 'prestataire';
-
-      final Map<String, dynamic> data = {
-        'name': _nameController.text.trim(),
-        'tel': _telController.text.trim(),
-        'sex': _selectedSex ?? "",
-        'birthdate': _birthdateController.text.trim(),
-        'common': _selectedCommune ?? "",
-        'neighborhood': _selectedQuartier ?? "",
-        'street': _streetController.text.trim(),
-        'streetnumber': _streetNumberController.text.trim(),
-        'occupation': _occupationController.text.trim(),
-        'identity_card': _newIdentityCardPath ?? user?.identityCard ?? "",
+      final data = {
+        'name': _nameController.text,
+        'tel': _telController.text,
+        'city_residence': _cityController.text,
+        'sex': _selectedSex,
+        'birthdate': _selectedBirthDate?.toIso8601String(), // Format technique pour l'API
+        'photo': _newImage,
       };
-
-      if (isPrestataire) {
-        data.addAll({
-          'education_level': _selectedEducation ?? "",
-          'service_offered': _serviceOfferedController.text.trim(),
-          'languages': _languagesController.text.trim(),
-          'salary_min': _salaryMinController.text.trim(),
-          'salary_max': _salaryMaxController.text.trim(),
-          'study_domain': _studyDomainController.text.trim(),
-        });
-      }
-
-      if (_newPasswordController.text.isNotEmpty) {
-        data['old_password'] = _oldPasswordController.text;
-        data['password'] = _newPasswordController.text;
-      }
-
-      setState(() => _isLoading = true);
-      final success = await context.read<AuthProvider>().updateProfile(data);
-      setState(() => _isLoading = false);
-
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Profil mis à jour !"),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context);
-      }
+      bool success = await context.read<AuthProvider>().updateProfile(data);
+      if (success && mounted) Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().user;
-    if (user == null)
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
-    final bool isPrestataire = user.role.toLowerCase() == 'prestataire';
+    final auth = context.watch<AuthProvider>();
+    const Color brandGold = Color(0xFFBC7400);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F9),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 1,
-        title: const Text(
-          "Modifier le profil",
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w900,
-            fontSize: 17,
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        elevation: 0,
+        leading: const CloseButton(color: Colors.black),
+        title: const Text("Modifier le profil", style: TextStyle(color: Colors.black, fontWeight: FontWeight.w800)),
         actions: [
-          if (_isLoading)
-            const Padding(
-              padding: EdgeInsets.all(15),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else
-            IconButton(
-              onPressed: _submitUpdate,
-              icon: const Icon(
-                Icons.check_circle,
-                color: Color(0xFFBC7400),
-                size: 28,
-              ),
-            ),
+          TextButton(
+            onPressed: auth.isLoading ? null : _update,
+            child: auth.isLoading 
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: brandGold))
+              : const Text("Enregistrer", style: TextStyle(color: brandGold, fontWeight: FontWeight.w900, fontSize: 16)),
+          )
         ],
       ),
-      body: Stack(
-        children: [
-          // 1. LE FORMULAIRE SCROLLABLE
-          Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              // Padding important pour laisser la place au menu flottant en bas
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
-              child: Column(
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          children: [
+            const SizedBox(height: 20),
+            
+            // AVATAR PICKER
+            Center(
+              child: Stack(
                 children: [
-                  _buildSectionHeader("Sécurité"),
-                  _buildTextField(
-                    "Ancien mot de passe",
-                    _oldPasswordController,
-                    Icons.lock_person_outlined,
-                    isPassword: true,
-                    obscureVar: _obscureOldPassword,
-                    onToggle: () => setState(
-                      () => _obscureOldPassword = !_obscureOldPassword,
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey[100]),
+                    child: CircleAvatar(
+                      radius: 55,
+                      backgroundColor: Colors.grey[200],
+                      backgroundImage: _newImage != null 
+                        ? FileImage(_newImage!) 
+                        : (auth.user?.photo != null ? NetworkImage(auth.user!.photo!) : null) as ImageProvider?,
+                      child: (_newImage == null && auth.user?.photo == null) ? const Icon(Icons.person, size: 45, color: Colors.grey) : null,
                     ),
                   ),
-                  _buildTextField(
-                    "Nouveau mot de passe",
-                    _newPasswordController,
-                    Icons.lock_reset,
-                    isPassword: true,
-                    obscureVar: _obscureNewPassword,
-                    onToggle: () => setState(
-                      () => _obscureNewPassword = !_obscureNewPassword,
-                    ),
-                  ),
-
-                  _buildSectionHeader("Informations de base"),
-                  _buildTextField(
-                    "Nom complet",
-                    _nameController,
-                    Icons.person_outline,
-                  ),
-                  _buildTextField(
-                    "Téléphone",
-                    _telController,
-                    Icons.phone_android_outlined,
-                  ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildDropdownField(
-                          "Sexe",
-                          Icons.wc,
-                          ['M', 'F'],
-                          _selectedSex,
-                          (val) => setState(() => _selectedSex = val),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: GestureDetector(
+                      onTap: () async {
+                        final picker = ImagePicker();
+                        final XFile? img = await picker.pickImage(source: ImageSource.gallery);
+                        if (img != null) setState(() => _newImage = File(img.path));
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2)
                         ),
+                        child: const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 18),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildDatePicker(
-                          "Date de naissance",
-                          _birthdateController,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  _buildSectionHeader("Localisation"),
-                  _buildDropdownField(
-                    "Commune",
-                    Icons.location_city,
-                    LocationData.data['RD Congo']['Kinshasa'].keys
-                        .cast<String>()
-                        .toList(),
-                    _selectedCommune,
-                    (val) => setState(() {
-                      _selectedCommune = val;
-                      _selectedQuartier = null;
-                    }),
-                  ),
-                  _buildDropdownField(
-                    "Quartier",
-                    Icons.near_me_outlined,
-                    (_selectedCommune != null &&
-                            LocationData
-                                    .data['RD Congo']?['Kinshasa']?[_selectedCommune] !=
-                                null)
-                        ? List<String>.from(
-                            LocationData
-                                .data['RD Congo']['Kinshasa'][_selectedCommune],
-                          )
-                        : [],
-                    _selectedQuartier,
-                    (val) => setState(() => _selectedQuartier = val),
-                  ),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: _buildTextField(
-                          "Rue / Avenue",
-                          _streetController,
-                          Icons.streetview,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 1,
-                        child: _buildTextField(
-                          "N°",
-                          _streetNumberController,
-                          Icons.numbers,
-                          isNumber: true,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  _buildSectionHeader("Document d'identité"),
-                  _buildIdCardPicker(user.identityCard),
-
-                  if (isPrestataire) ...[
-                    _buildSectionHeader("Expertise Métier"),
-                    _buildDropdownField(
-                      "Niveau d'étude",
-                      Icons.school_outlined,
-                      [
-                        'Primaire',
-                        'Diplôme d\'Etat',
-                        'Licence',
-                        'Master',
-                        'Doctorat',
-                      ],
-                      _selectedEducation,
-                      (val) => setState(() => _selectedEducation = val),
                     ),
-                    _buildTextField(
-                      "Service proposé",
-                      _serviceOfferedController,
-                      Icons.handyman_outlined,
-                    ),
-                    _buildTextField(
-                      "Langues parlées",
-                      _languagesController,
-                      Icons.translate,
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            "Tarif Min",
-                            _salaryMinController,
-                            Icons.remove_circle_outline,
-                            isNumber: true,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _buildTextField(
-                            "Tarif Max",
-                            _salaryMaxController,
-                            Icons.add_circle_outline,
-                            isNumber: true,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ],
               ),
             ),
-          ),
+            
+            const SizedBox(height: 40),
 
-          // 2. BARRE DE NAVIGATION FIXÉE (en bas du Stack)
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: CustomBottomNav(currentRoute: AppRoutes.profile),
-          ),
-        ],
-      ),
-    );
-  }
+            _buildModernInput("Nom complet", _nameController, Icons.person_outline),
+            _buildModernInput("Téléphone", _telController, Icons.phone_android_outlined),
+            _buildModernInput("Ville de résidence", _cityController, Icons.location_on_outlined),
+            
+            // DATE DE NAISSANCE (dd/MM/yyyy)
+            _buildClickableInput(
+              "Date de naissance", 
+              _selectedBirthDate == null 
+                  ? "Définir ma date" 
+                  : DateFormat('dd/MM/yyyy').format(_selectedBirthDate!),
+              Icons.cake_outlined,
+              () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: _selectedBirthDate ?? DateTime(2000),
+                  firstDate: DateTime(1950),
+                  lastDate: DateTime.now(),
+                );
+                if (date != null) setState(() => _selectedBirthDate = date);
+              }
+            ),
 
-  // --- WIDGETS UI ---
-  Widget _buildIdCardPicker(String? currentPath) {
-    final String? pathToDisplay = _newIdentityCardPath ?? currentPath;
-    return GestureDetector(
-      onTap: _pickIdCard,
-      child: Container(
-        height: 180,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: const Color(0xFFBC7400).withOpacity(0.3),
-            width: 2,
-          ),
-        ),
-        child: pathToDisplay != null && pathToDisplay.isNotEmpty
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(13),
-                child: pathToDisplay.startsWith('http')
-                    ? Image.network(
-                        pathToDisplay,
-                        fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) =>
-                            const Icon(Icons.broken_image),
-                      )
-                    : Image.file(
-                        File(pathToDisplay),
-                        fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) =>
-                            const Icon(Icons.broken_image),
-                      ),
-              )
-            : const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.add_a_photo_outlined,
-                    size: 40,
-                    color: Color(0xFFBC7400),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    "Modifier la carte d'identité",
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
-              ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(top: 25, bottom: 12, left: 5),
-      child: Text(
-        title.toUpperCase(),
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-          color: Color(0xFFBC7400),
-          letterSpacing: 1.2,
+            // SEXE
+            _buildClickableInput(
+              "Sexe", 
+              _selectedSex == 'M' ? "Masculin" : (_selectedSex == 'F' ? "Féminin" : "Choisir"),
+              Icons.wc_outlined,
+              () => _showSexPicker(context)
+            ),
+            
+            const SizedBox(height: 30),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildTextField(
-    String label,
-    TextEditingController controller,
-    IconData icon, {
-    bool isNumber = false,
-    bool isPassword = false,
-    bool? obscureVar,
-    VoidCallback? onToggle,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+  Widget _buildModernInput(String label, TextEditingController controller, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
       child: TextFormField(
         controller: controller,
-        obscureText: isPassword ? (obscureVar ?? true) : false,
-        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         decoration: InputDecoration(
+          prefixIcon: Icon(icon, color: Colors.black, size: 20),
           labelText: label,
-          prefixIcon: Icon(icon, size: 20, color: const Color(0xFFBC7400)),
-          suffixIcon: isPassword
-              ? IconButton(
-                  icon: Icon(
-                    (obscureVar ?? true)
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                    size: 20,
-                  ),
-                  onPressed: onToggle,
-                )
-              : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 15,
-            vertical: 15,
+          labelStyle: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+          filled: true,
+          fillColor: const Color(0xFFF6F6F6),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(vertical: 18),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClickableInput(String label, String value, IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF6F6F6),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.black, size: 20),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                ],
+              ),
+              const Spacer(),
+              const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.black26),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildDropdownField(
-    String label,
-    IconData icon,
-    List<String> items,
-    String? value,
-    Function(String?) onChanged,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: DropdownButtonFormField<String>(
-        value: (value != null && items.contains(value)) ? value : null,
-        style: const TextStyle(
-          fontSize: 14,
-          color: Colors.black,
-          fontWeight: FontWeight.w600,
+  void _showSexPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(25),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+            const SizedBox(height: 20),
+            const Text("Sélectionnez votre sexe", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 20),
+            _sexOption("Masculin", 'M'),
+            _sexOption("Féminin", 'F'),
+            const SizedBox(height: 20),
+          ],
         ),
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, size: 20, color: const Color(0xFFBC7400)),
-          border: InputBorder.none,
-        ),
-        items: items
-            .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-            .toList(),
-        onChanged: onChanged,
       ),
     );
   }
 
-  Widget _buildDatePicker(String label, TextEditingController controller) {
-    return InkWell(
-      onTap: () async {
-        final DateTime? picked = await showDatePicker(
-          context: context,
-          initialDate: DateTime(2000),
-          firstDate: DateTime(1950),
-          lastDate: DateTime.now(),
-        );
-        if (picked != null)
-          setState(
-            () => controller.text = DateFormat('yyyy-MM-dd').format(picked),
-          );
+  Widget _sexOption(String title, String code) {
+    return ListTile(
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      trailing: _selectedSex == code ? const Icon(Icons.check_circle, color: Colors.black) : null,
+      onTap: () {
+        setState(() => _selectedSex = code);
+        Navigator.pop(context);
       },
-      child: IgnorePointer(
-        child: _buildTextField(
-          label,
-          controller,
-          Icons.calendar_today_outlined,
-        ),
-      ),
     );
   }
 }

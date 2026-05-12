@@ -18,9 +18,12 @@ class CustomBottomNav extends StatelessWidget {
 
     if (user == null) return const SizedBox();
 
-    // Priorité au paramètre passé, sinon détection auto
     final String? activeRoute = currentRoute ?? ModalRoute.of(context)?.settings.name;
     final bool isClient = user.role.toLowerCase() == 'client';
+
+    // Détermination de la route "Calendrier" selon le rôle
+    // Si client -> AppRoutes.myAppointments, sinon -> AppRoutes.missions
+    final String calendarRoute = isClient ? AppRoutes.myAppointments : AppRoutes.missions;
 
     return Container(
       height: 70,
@@ -45,6 +48,7 @@ class CustomBottomNav extends StatelessWidget {
             route: AppRoutes.home,
             isActive: activeRoute == AppRoutes.home,
           ),
+          
           if (isClient)
             _navButton(
               context,
@@ -52,18 +56,29 @@ class CustomBottomNav extends StatelessWidget {
               route: AppRoutes.findService,
               isActive: activeRoute == AppRoutes.findService,
             ),
+
+          // Le bouton calendrier dynamique
           _navButton(
             context,
-            icon: Icons.person_rounded,
-            route: AppRoutes.profile,
-            isActive: activeRoute == AppRoutes.profile,
+            icon: Icons.calendar_month_rounded,
+            route: calendarRoute,
+            isActive: activeRoute == calendarRoute,
           ),
+
           _navButton(
             context,
             icon: Icons.request_page_rounded,
             route: AppRoutes.myRequests,
             isActive: activeRoute == AppRoutes.myRequests,
           ),
+
+          _navButton(
+            context,
+            icon: Icons.person_rounded,
+            route: AppRoutes.profile,
+            isActive: activeRoute == AppRoutes.profile,
+          ),
+          
           _navButton(
             context,
             icon: Icons.menu_open_rounded,
@@ -89,7 +104,7 @@ class CustomBottomNav extends StatelessWidget {
       },
       borderRadius: BorderRadius.circular(35),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
