@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart'; 
@@ -15,18 +16,48 @@ class _LoginViewState extends State<LoginView> {
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
+  // Variables pour la gestion des erreurs temporaires
+  String? _emailError;
+  String? _passwordError;
+  Timer? _errorTimer;
+
   final Color brandGold = const Color(0xFFBC7400);
 
+  void _showError(String type, String message) {
+    setState(() {
+      if (type == 'email') {
+        _emailError = message;
+      } else {
+        _passwordError = message;
+      }
+    });
+
+    // Annule le timer précédent s'il existe
+    _errorTimer?.cancel();
+    
+    // Disparaît après 3 secondes
+    _errorTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _emailError = null;
+          _passwordError = null;
+        });
+      }
+    });
+  }
+
   Future<void> _handleLogin() async {
+    // Reset des erreurs visuelles au clic
+    setState(() {
+      _emailError = null;
+      _passwordError = null;
+    });
+
     if (!_formKey.currentState!.validate()) {
-      debugPrint("⚠️ Validation locale échouée");
       return;
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-    debugPrint("🚀 Tentative de connexion...");
-    debugPrint("📧 Login: ${_loginController.text.trim()}");
 
     try {
       await authProvider.login(
@@ -34,21 +65,28 @@ class _LoginViewState extends State<LoginView> {
         _passwordController.text,
       );
 
-      debugPrint("✅ Connexion réussie !");
-
       if (mounted) {
         Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
       }
     } catch (e) {
-      debugPrint("❌ Erreur de connexion : $e");
+      String errorMsg = e.toString().toLowerCase();
+      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Erreur : ${e.toString()}"),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        // Logique de tri d'erreur selon le retour de l'API/Provider
+        if (errorMsg.contains("email") || errorMsg.contains("identifiant") || errorMsg.contains("user")) {
+          _showError('email', "Identifiant incorrect");
+        } else if (errorMsg.contains("password") || errorMsg.contains("mot de passe")) {
+          _showError('password', "Mot de passe incorrect");
+        } else {
+          // Si l'erreur est globale
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Erreur : ${e.toString()}"),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     }
   }
@@ -57,6 +95,7 @@ class _LoginViewState extends State<LoginView> {
   void dispose() {
     _loginController.dispose();
     _passwordController.dispose();
+    _errorTimer?.cancel();
     super.dispose();
   }
 
@@ -90,6 +129,7 @@ class _LoginViewState extends State<LoginView> {
                     "Email ou Téléphone", 
                     Icons.alternate_email, 
                     controller: _loginController,
+                    errorText: _emailError,
                     validator: (v) => v!.isEmpty ? "Identifiant requis" : null,
                   ),
                   
@@ -98,15 +138,14 @@ class _LoginViewState extends State<LoginView> {
                     Icons.lock_outline, 
                     obscure: true, 
                     controller: _passwordController,
+                    errorText: _passwordError,
                     validator: (v) => v!.isEmpty ? "Mot de passe requis" : null,
                   ),
                   
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {
-                        debugPrint("🔗 Clic sur Mot de passe oublié");
-                      }, 
+                      onPressed: () {}, 
                       child: const Text("Mot de passe oublié ?", 
                           style: TextStyle(color: Color(0xFF0095F6), fontWeight: FontWeight.bold))
                     ),
@@ -146,26 +185,40 @@ class _LoginViewState extends State<LoginView> {
   }
 
   Widget _modernInput(String hint, IconData icon, 
-      {bool obscure = false, TextEditingController? controller, String? Function(String?)? validator}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA), 
-        borderRadius: BorderRadius.circular(15), 
-        border: Border.all(color: Colors.grey[200]!)
-      ),
-      child: TextFormField(
-        controller: controller,
-        obscureText: obscure,
-        validator: validator,
-        decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: Colors.grey[400], size: 20), 
-          hintText: hint, 
-          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10)
+      {bool obscure = false, TextEditingController? controller, String? Function(String?)? validator, String? errorText}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAFAFA), 
+            borderRadius: BorderRadius.circular(15), 
+            border: Border.all(color: errorText != null ? Colors.redAccent : Colors.grey[200]!)
+          ),
+          child: TextFormField(
+            controller: controller,
+            obscureText: obscure,
+            validator: validator,
+            decoration: InputDecoration(
+              prefixIcon: Icon(icon, color: errorText != null ? Colors.redAccent : Colors.grey[400], size: 20), 
+              hintText: hint, 
+              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10)
+            ),
+          ),
         ),
-      ),
+        // Message d'erreur animé sous le champ
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          height: errorText != null ? 25 : 0,
+          padding: const EdgeInsets.only(left: 12, top: 5),
+          child: errorText != null 
+            ? Text(errorText, style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold))
+            : const SizedBox.shrink(),
+        ),
+        if (errorText == null) const SizedBox(height: 16),
+      ],
     );
   }
 
@@ -202,18 +255,17 @@ class _LoginViewState extends State<LoginView> {
     return SizedBox(
       width: double.infinity, height: 55,
       child: OutlinedButton.icon(
-        onPressed: () => debugPrint("🚀 Google Login Pressed"),
+        onPressed: () {},
         style: OutlinedButton.styleFrom(
             side: BorderSide(color: Colors.grey[200]!), 
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-        icon: const Image(image: AssetImage('assets/images/google.png'), height: 24),
+        icon: const Icon(Icons.g_mobiledata, size: 30, color: Colors.black), // Image simplifiée ici
         label: const Text("Continuer avec Google", 
             style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
     );
   }
 
-  // --- NOUVELLE MÉTHODE POUR LE SÉLECTEUR DE RÔLE (COMME DANS WELCOME) ---
   void _showRoleSelector(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -226,25 +278,13 @@ class _LoginViewState extends State<LoginView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
             const SizedBox(height: 20),
-            const Text(
-              "Choisissez votre profil",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
+            const Text("Choisissez votre profil", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 24),
-            _roleTile(context, "Client", "Je cherche un service",
-                Icons.person_outline, "client"),
+            _roleTile(context, "Client", "Je cherche un service", Icons.person_outline, "client"),
             const SizedBox(height: 12),
-            _roleTile(context, "Prestataire", "Je propose mes services",
-                Icons.handyman_outlined, "prestataire"),
+            _roleTile(context, "Prestataire", "Je propose mes services", Icons.handyman_outlined, "prestataire"),
             const SizedBox(height: 30),
           ],
         ),
@@ -252,12 +292,10 @@ class _LoginViewState extends State<LoginView> {
     );
   }
 
-  // --- WIDGET POUR LES OPTIONS DU MODAL ---
-  Widget _roleTile(BuildContext context, String title, String sub,
-      IconData icon, String role) {
+  Widget _roleTile(BuildContext context, String title, String sub, IconData icon, String role) {
     return ListTile(
       onTap: () {
-        Navigator.pop(context); // Ferme le modal
+        Navigator.pop(context);
         Navigator.pushNamed(context, AppRoutes.register, arguments: role);
       },
       leading: CircleAvatar(
@@ -280,9 +318,7 @@ class _LoginViewState extends State<LoginView> {
       children: [
         const Text("Vous n'avez pas de compte ? "),
         GestureDetector(
-          onTap: () {
-            _showRoleSelector(context); // Ouvre maintenant le sélecteur de rôle
-          },
+          onTap: () => _showRoleSelector(context),
           child: const Text("S'inscrire", 
               style: TextStyle(color: Color(0xFF0095F6), fontWeight: FontWeight.bold)),
         ),

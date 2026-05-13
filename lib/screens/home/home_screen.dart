@@ -291,28 +291,122 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Widget _buildProviderCard(BuildContext context, Map match) {
-    final provider = match['provider'] ?? {};
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        leading: CircleAvatar(
-          backgroundColor: Colors.grey.shade200,
-          backgroundImage: (provider['photo'] != null && provider['photo'].isNotEmpty) 
-              ? NetworkImage(provider['photo']) : null,
-          child: provider['photo'] == null ? const Icon(Icons.person) : null,
+  final provider = match['provider'] ?? {};
+  final String photo = provider['photo'] ?? "";
+  final String name = provider['name'] ?? "Prestataire";
+  final String service = provider['service_offered'] ?? 'Service';
+
+  return Container(
+    margin: const EdgeInsets.only(bottom: 16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 20,
+          offset: const Offset(0, 10),
         ),
-        title: Text(provider['name'] ?? "Prestataire", style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("${provider['service_offered'] ?? 'Service'} • Kinshasa"),
-        trailing: ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
-          onPressed: () => _showAppointmentDialog(context, match['id']),
-          child: const Text("Choisir"),
-        ),
+      ],
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          // AVATAR AVEC BORDURE FINE
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.grey.shade100, width: 1),
+            ),
+            child: CircleAvatar(
+              radius: 32,
+              backgroundColor: const Color(0xFFF5F5F5),
+              backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+              child: photo.isEmpty
+                  ? const Icon(Icons.person_outline, color: Colors.grey)
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // INFOS PRESTATAIRE
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  service,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                
+                // BADGE KINSHASA
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F4FF),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.location_on, size: 12, color: Colors.blueAccent),
+                      SizedBox(width: 4),
+                      Text(
+                        "Kinshasa",
+                        style: TextStyle(
+                          color: Colors.blueAccent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // BOUTON CHOISIR CHIC
+          ElevatedButton(
+            onPressed: () => _showAppointmentDialog(context, match['id']),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: const Text(
+              "Choisir",
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // --- 4. LE BUILD PRINCIPAL ---
   @override
@@ -444,8 +538,7 @@ class _HomeViewState extends State<HomeView> {
       children: [
         const Text("TABLEAU DE BORD",
             style: TextStyle(fontSize: 11, color: Colors.grey, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
-        Text("Ravi de vous revoir, $name", 
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        
       ],
     );
   }

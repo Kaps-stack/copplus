@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../Model/contract.dart';
+import '../routes/app_routes.dart';
+import '../routes/app_pages.dart';
 
 class ContractDetailScreen extends StatelessWidget {
   final Contract contract;
@@ -97,9 +99,7 @@ class ContractDetailScreen extends StatelessWidget {
 
             const SizedBox(height: 40),
             
-            if (isClient) 
-              _buildPaymentButton(),
-            const SizedBox(height: 40),
+            
           ],
         ),
       ),
@@ -217,31 +217,6 @@ class ContractDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPaymentButton() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.blueAccent.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10)),
-        ],
-      ),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blueAccent,
-          minimumSize: const Size(double.infinity, 65),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          elevation: 0,
-        ),
-        onPressed: () {},
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.payment_rounded, color: Colors.white),
-            SizedBox(width: 10),
-            Text("RÉGLER LA FACTURE", style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1, color: Colors.white)),
-          ],
-        ),
-      ),
-    );
-  }
+  // Ajoute "BuildContext context" entre les parenthèses ici
+
 }

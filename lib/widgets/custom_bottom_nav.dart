@@ -49,13 +49,7 @@ class CustomBottomNav extends StatelessWidget {
             isActive: activeRoute == AppRoutes.home,
           ),
           
-          if (isClient)
-            _navButton(
-              context,
-              icon: Icons.person_search,
-              route: AppRoutes.findService,
-              isActive: activeRoute == AppRoutes.findService,
-            ),
+         
 
           // Le bouton calendrier dynamique
           _navButton(
@@ -65,12 +59,7 @@ class CustomBottomNav extends StatelessWidget {
             isActive: activeRoute == calendarRoute,
           ),
 
-          _navButton(
-            context,
-            icon: Icons.request_page_rounded,
-            route: AppRoutes.myRequests,
-            isActive: activeRoute == AppRoutes.myRequests,
-          ),
+          
 
           _navButton(
             context,

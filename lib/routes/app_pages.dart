@@ -16,6 +16,7 @@ import '../screens/client/notifications_page.dart';
 import '../screens/client/request_details_page.dart'; 
 import '../screens/missions_view.dart';
 import '../screens/appointements_view.dart';
+import '../screens/payment_view.dart';
 
 // Écrans Contrats (Nouveaux)
 import '../screens/contract_list_screen.dart';
@@ -49,6 +50,7 @@ class AppPages {
       AppRoutes.completeProfile: (context) => const CompleteProfilePage(),
       AppRoutes.missions: (context) => const MissionsView(),
       AppRoutes.myAppointments: (context) => const ClientAppointmentsView(),
+      AppRoutes.payment: (context) => const PaymentView(),
     };
   }
 

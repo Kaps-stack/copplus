@@ -21,4 +21,5 @@ class AppRoutes {
   // --- Nouvelles routes pour les contrats ---
   static const String contracts = '/contracts';
   static const String contractDetails = '/contract-details';
+  static const String payment = '/payment';
 }
